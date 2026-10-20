@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="light"/>
+<meta name="theme-color" content="#f7f4ec"/>
+<link rel="preload" href="assets/fonts/wenkai-regular.woff2" as="font" type="font/woff2" crossorigin/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23faf7f0'/%3E%3Cpath d='M9 3.6v3.2M15 3.6v3.2' stroke='%232c4a7c' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M6.2 6.8h11.6v3.4a5.8 5.8 0 0 1-11.6 0z' fill='%232c4a7c'/%3E%3Cpath d='M12 16v1.7a2.7 2.7 0 0 0 2.7 2.7h2.3' stroke='%23b7791f' stroke-width='2.2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E"/>
+<meta name="description" content="上下文不是记忆，塞进去不是记住。三层结构、写入六道闸、带预算的召回、遗忘与卫生、以及怎么证明它有用——一份关于 Agent 记忆的解剖手记，附四枚可玩小样。"/>
+<meta name="author" content="StarrySea1412"/>
+<meta property="og:title" content="给 Agent 装上记忆 · StarrySea1412"/>
+<meta property="og:description" content="记住比聪明更难——Agent 记忆的解剖手记，四枚可玩小样。"/>
+<meta property="og:type" content="article"/>
+<title>给 Agent 装上记忆 · StarrySea1412</title>
+<style>
+@font-face{font-family:"LXGW WenKai";src:url("assets/fonts/wenkai-regular.woff2") format("woff2");font-weight:300 599;font-style:normal;font-display:swap}
+@font-face{font-family:"LXGW WenKai";src:url("assets/fonts/wenkai-medium.woff2") format("woff2");font-weight:600 900;font-style:normal;font-display:swap}
+:root{
+  --paper:#f7f4ec;--surface:#fffcf4;--ink:#23282a;--muted:#6a7168;--line:#dfd9c9;
+  --blue:#2f5d50;--blue-soft:#e7efe8;--amber:#b5651d;--amber-soft:#f6e6d2;
+  --serif:"LXGW WenKai","Songti SC","STSong","Noto Serif CJK SC",serif;
+  --sans:"LXGW WenKai",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:28px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.85;-webkit-font-smoothing:antialiased;text-spacing:ideograph-alpha}
+::selection{background:#d9e2ef}
+a{color:var(--blue);text-underline-offset:4px}
+a:hover{color:var(--amber)}
+button,a,input{touch-action:manipulation}
+button{cursor:pointer;color:inherit;font:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--amber);outline-offset:4px}
+img{display:block;max-width:100%;height:auto}
+p{margin:0 0 1.25em}
+h1,h2,h3,h4{line-height:1.45;text-wrap:balance}
+h1,h2,h3{font-family:var(--serif)}
+h2,h3,h4{margin:0}
+strong{font-weight:650}
+code{font-family:var(--mono);font-size:.88em;background:var(--blue-soft);padding:.12em .32em;border-radius:3px;overflow-wrap:anywhere}
+.progress{position:fixed;inset:0 auto auto 0;height:3px;width:100%;background:var(--amber);transform:scaleX(0);transform-origin:left;z-index:30;pointer-events:none}
+.wrap{max-width:1160px;margin:auto;padding-inline:36px}
+/* masthead */
+.masthead{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-block:26px 20px;border-bottom:1px solid var(--ink);font-size:12px;letter-spacing:.12em}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650}
+.brand-mark{width:22px;height:22px;display:block}
+.brand-mark svg{width:100%;height:100%;display:block}
+.edition{color:var(--muted);font-family:var(--mono);letter-spacing:.05em;font-size:11px}
+/* hero */
+.hero{padding-block:68px 54px;display:grid;grid-template-columns:1.15fr .85fr;gap:52px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.08em;color:var(--muted);margin:0 0 26px;background:var(--surface);border:1px solid var(--line);padding:6px 14px 6px 10px;border-radius:100px}
+.eyebrow span{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.14em;font-weight:600;padding-right:10px;border-right:1px solid var(--line)}
+.eyebrow strong{font-weight:600;color:var(--ink)}
+.hero h1{font-size:clamp(46px,5.4vw,74px);font-weight:800;line-height:1.12;letter-spacing:-.04em;margin:0 0 26px}
+.hero h1 em{display:block;color:var(--blue);font-style:normal;margin-top:4px}
+.hero h1 em .scrib{display:block;width:150px;height:12px;margin-top:5px}
+.dek-wrap{margin:0 0 30px;max-width:520px;border-left:3px solid var(--blue);padding-left:20px}
+.dek-tag{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--blue);letter-spacing:.05em;margin:0 0 10px}
+.dek{font-size:16px;line-height:1.85;color:var(--muted);margin:0}
+.hero-meta{display:flex;gap:8px;flex-wrap:wrap}
+.hero-meta .pill{display:inline-flex;align-items:center;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:6px 14px;border-radius:6px;font-family:var(--mono);letter-spacing:.03em}
+/* figures */
+figure{margin:0}
+.art{max-width:480px;width:100%;margin-inline:auto}
+.art-button{display:block;position:relative;width:100%;border:1px solid #dcd6c4;padding:0;background:#fffdf2;cursor:zoom-in;box-shadow:6px 8px 0 #d8cdb22e;transition:transform .2s}
+.art-button:hover{transform:translateY(-3px)}
+.art-button img{width:100%}
+.art-button .zoom-hint{position:absolute;bottom:10px;right:10px;background:var(--surface);border:1px solid var(--line);padding:3px 8px;font-size:10px;border-radius:4px;box-shadow:0 2px 6px #0002;opacity:0;transform:translateY(4px);transition:opacity .2s,transform .2s;pointer-events:none}
+.art-button:hover .zoom-hint,.art-button:focus-visible .zoom-hint{opacity:1;transform:none}
+.art figcaption{font-size:11px;line-height:1.8;color:var(--muted);margin-top:14px}
+.art figcaption b{color:var(--blue);font-weight:500;margin-right:8px}
+.art figcaption small{display:block;font:inherit;margin-top:4px}
+/* opening */
+.opening{max-width:720px;margin:52px auto 0;font-size:17px}
+.opening .lead{font-family:var(--serif);font-size:23px;line-height:1.75;color:var(--blue)}
+.scope{font-size:12px!important;color:var(--muted);border-left:2px solid var(--line);padding-left:17px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:44px 0 0;padding-top:22px;border-top:1px dashed var(--line)}
+.toc a{display:inline-flex;align-items:baseline;gap:7px;font-size:12.5px;color:var(--muted);text-decoration:none;border:1px solid var(--line);background:var(--surface);padding:7px 13px;border-radius:100px}
+.toc a b{font-family:var(--mono);font-weight:600;font-size:10.5px;color:var(--amber)}
+.toc a:hover{color:var(--blue);border-color:#b9cbbb}
+/* chapters */
+.chapter{margin-top:84px;padding-top:44px;border-top:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='8' viewBox='0 0 160 8'%3E%3Cpath d='M2 4.5 C 22 1.8, 42 7, 62 4.5 S 102 1.8, 122 4.5 S 152 7, 158 4.5' fill='none' stroke='%2322262b' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:repeat-x;background-position:top left;background-size:160px 8px}
+.chapter-head{display:grid;grid-template-columns:110px 1fr;gap:20px;margin-bottom:40px;align-items:start}
+.chapter-no{font-family:var(--serif);font-size:74px;font-weight:400;color:#c9c3ae;line-height:1;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.chapter-no .ch-ic{width:46px;height:46px;flex:none}
+.chapter-label{font-family:var(--mono);letter-spacing:.16em;font-size:10px;color:var(--amber);margin-bottom:9px}
+.chapter-stamp{display:inline-block;margin-top:15px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--amber);border:1px solid currentColor;padding:3px 8px;transform:rotate(-2deg)}
+.chapter-head h2{font-size:36px;letter-spacing:-.02em}
+.chapter-head p{font-size:15px;color:var(--muted);margin:12px 0 0;max-width:660px}
+.reading{max-width:720px;margin-inline:auto;font-size:16px}
+.reading>h3{font-size:23px;margin:38px 0 18px}
+.reading>h4{font-size:17px;margin:28px 0 13px}
+.note{font-size:13px;line-height:1.85;border-left:3px solid var(--blue);padding:13px 18px;background:var(--blue-soft);margin:26px 0}
+.note p:last-child{margin-bottom:0}
+.note small{display:block;color:var(--muted);margin-top:6px}
+/* checkup card */
+.checkup{margin:30px 0;border:1px solid var(--ink);background:var(--surface);padding:26px 28px 22px}
+.checkup-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px dashed #b9b09a;padding-bottom:14px;margin-bottom:6px}
+.checkup-head h3{font-size:20px}
+.checkup-head small{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em}
+.checkup-row{display:grid;grid-template-columns:1.1fr 1.4fr 1fr;gap:10px;font-size:13px;padding:11px 0;border-bottom:1px solid #ece8db;align-items:baseline}
+.checkup-row span:last-child{text-align:right;color:var(--muted);font-size:12px}
+.checkup-row .dot{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px}
+.checkup-row .dot svg{width:16px;height:16px;flex:none}
+.dot-alive{color:var(--blue)}
+.dot-observe{color:var(--amber)}
+.dot-suspect{color:var(--muted)}
+.dot-dead{color:#9aa0a6}
+.checkup-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.checkup-foot .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--amber);border:1px solid currentColor;padding:4px 10px;transform:rotate(-3deg)}
+.checkup-foot small{color:var(--muted);font-size:11px}
+/* death taxonomy */
+.death-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:28px 0}
+.death-card{border:1px solid var(--line);background:var(--surface);padding:18px 20px}
+.death-card small{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.08em}
+.death-card b{display:block;font-size:15px;margin:6px 0 8px}
+.death-card p{font-size:13px;color:var(--muted);margin:0;line-height:1.8}
+.death-card:last-child{grid-column:1/-1}
+.death-icon{width:40px;height:40px;display:block;margin-bottom:12px}
+/* formula */
+.formula{margin:28px 0;padding:26px 28px;background:var(--blue);color:#f2f4ef}
+.formula .diagram-label{color:#b9cbbb;margin-bottom:14px}
+.formula p{font-family:var(--serif);font-size:21px;line-height:1.6;margin:0}
+.formula small{display:block;color:#c3cede;font-size:11px;margin-top:12px}
+.diagram-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--muted)}
+/* compare table */
+.table-wrap{overflow-x:auto;margin:26px 0;border-block:1px solid var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;line-height:1.8;min-width:520px;text-align:left}
+th{font-weight:650;color:var(--blue);padding:13px 16px;background:var(--blue-soft);white-space:nowrap}
+td{padding:14px 16px;border-top:1px solid var(--line);vertical-align:top}
+td:first-child{font-weight:600;width:38%}
+caption{text-align:left;padding:12px 0;font-size:12px;color:var(--muted)}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);margin:28px 0}
+.steps>div{padding:22px 20px;background:var(--surface)}
+.steps>div+div{border-left:1px solid var(--line)}
+.steps small{font-family:var(--mono);font-size:10px;color:var(--amber)}
+.steps .step-ic{width:34px;height:34px;display:block;margin-bottom:12px}
+.steps h4{font-size:17px;margin:8px 0 8px}
+.steps p{font-size:12.5px;color:var(--muted);margin:0;line-height:1.8}
+.steps code{font-size:11px}
+/* cooling */
+.cooling{margin:8px 0 26px;border-block:1px solid var(--line);font-size:13.5px}
+.cooling-row{display:grid;grid-template-columns:110px 1fr;gap:14px;padding:12px 4px;border-bottom:1px solid #ece8db;align-items:baseline}
+.cooling-row:last-child{border-bottom:0}
+.cooling-row small{font-family:var(--mono);font-size:12px;color:var(--amber)}
+/* principles */
+.principles-list{counter-reset:pin;margin:26px 0;padding:0;list-style:none}
+.principles-list li{counter-increment:pin;position:relative;padding:0 0 18px 52px;font-size:14.5px}
+.principles-list li:last-child{padding-bottom:0}
+.principles-list li:before{content:"0" counter(pin);position:absolute;left:0;top:2px;font-family:var(--mono);font-size:12px;color:var(--amber);border:1px solid currentColor;padding:2px 6px}
+.principles-list b{display:block;font-size:15.5px;margin-bottom:6px}
+.principles-list p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.85}
+/* template/code block */
+.template{margin:26px 0;background:#edf1e8;border:1px solid #d6ded1}
+.template-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:11px 18px;border-bottom:1px solid #d6ded1;font-size:11px;color:var(--blue)}
+.copy-button{border:1px solid #8ba294;border-radius:3px;background:var(--surface);padding:5px 14px;min-height:34px;font-size:11px}
+.copy-button:hover{background:var(--blue);color:#fff}
+.template pre{font-family:var(--mono);font-size:12.5px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:18px 22px}
+.copy-status{font-size:11px;color:var(--muted);padding:0 22px;margin:0}
+.copy-status:not(:empty){padding-bottom:14px}
+/* checklist */
+.checklist{margin:26px 0}
+.check-item{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--line);background:var(--surface);padding:15px 18px;margin-bottom:10px;cursor:pointer;transition:background .15s}
+.check-item:hover{background:#fbf9f2}
+.check-item input{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin-top:4px;border:1.5px solid var(--ink);background:var(--surface);border-radius:4px;cursor:pointer;position:relative;transition:background .15s}
+.check-item input:checked{background:var(--blue);border-color:var(--blue)}
+.check-item input:checked:after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.check-item span{font-size:14px;line-height:1.8}
+.check-item b{display:block}
+.check-item small{color:var(--muted);font-size:12.5px}
+.check-item input:checked ~ span{opacity:.45}
+/* ending */
+.ending{margin-top:90px;padding-top:38px;border-top:1px solid var(--ink);max-width:720px;margin-inline:auto}
+.ending h2{font-size:30px;margin-bottom:18px}
+.quickcard{margin:30px 0;background:var(--ink);color:#efece2;padding:26px 28px}
+.quickcard .diagram-label{color:#a8a294;margin-bottom:14px}
+.quickcard ul{margin:0;padding-left:20px}
+.quickcard li{font-size:13.5px;margin:7px 0;line-height:1.8}
+.quickcard li::marker{color:var(--amber)}
+.quickcard code{background:#3a4048;color:#e6e2d6}
+/* footer */
+.site-foot{margin-top:70px;border-top:1px solid var(--line);padding:26px 0 46px;display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.site-foot .foot-meta{font-family:var(--mono);letter-spacing:.04em}
+.print-button{border:1px solid var(--ink);background:var(--surface);padding:8px 18px;font-size:12px;min-height:38px}
+.print-button:hover{background:var(--ink);color:var(--surface)}
+/* lightbox */
+.lightbox{position:fixed;inset:0;background:#171a1dde;display:none;align-items:center;justify-content:center;z-index:60;padding:30px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:92vw;max-height:88vh;width:auto;box-shadow:0 20px 60px #0008;background:#fffdf2}
+.lightbox-hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:#e8e4d8;font-size:12px;font-family:var(--mono);background:#00000055;padding:6px 14px;border-radius:100px}
+.lightbox-close{position:fixed;top:18px;right:22px;background:none;border:1px solid #e8e4d888;color:#e8e4d8;font-size:14px;padding:6px 14px;border-radius:100px}
+.lightbox-close:hover{background:#e8e4d822}
+/* motion */
+.hero h1 em .scrib path{stroke-dasharray:1;stroke-dashoffset:1;animation:scrib-draw 1s .4s cubic-bezier(.65,.05,.35,1) forwards}
+@keyframes scrib-draw{to{stroke-dashoffset:0}}
+.ch-ic,.death-icon,.step-ic{transition:transform .4s cubic-bezier(.2,.8,.3,1.15)}
+.fx{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .7s cubic-bezier(.2,.8,.3,1.15)}
+.fx-in{opacity:1;transform:none}
+.death-grid .death-card:nth-child(2) .fx{transition-delay:.08s}
+.death-grid .death-card:nth-child(3) .fx{transition-delay:.16s}
+.death-grid .death-card:nth-child(4) .fx{transition-delay:.24s}
+.death-grid .death-card:nth-child(5) .fx{transition-delay:.32s}
+.steps>div:nth-child(2) .fx{transition-delay:.12s}
+.steps>div:nth-child(3) .fx{transition-delay:.24s}
+@media (hover:hover){
+.death-card:hover .death-icon,.steps>div:hover .step-ic,.chapter-head:hover .ch-ic{transform:rotate(-5deg) scale(1.07)}
+}
+.dot-alive svg{animation:dot-breathe 2.4s ease-in-out infinite}
+@keyframes dot-breathe{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion: reduce){
+.hero h1 em .scrib path{animation:none;stroke-dashoffset:0}
+.dot-alive svg{animation:none}
+.fx{opacity:1;transform:none;transition:none}
+}
+
+/* print */
+@media print{
+  .progress,.masthead,.print-button,.art-button .zoom-hint,.lightbox{display:none!important}
+  body{background:#fff}
+  .chapter{page-break-inside:auto}
+  .chapter-head,h2,h3{page-break-after:avoid}
+  .art-button{box-shadow:none;cursor:default}
+  .hero{padding-block:30px}
+}
+@media (max-width:880px){
+  .wrap{padding-inline:22px}
+  .hero{padding-block:44px 30px;gap:30px}
+  .death-grid{grid-template-columns:1fr}
+  .death-card:last-child{grid-column:auto}
+  .steps{grid-template-columns:1fr}
+  .steps>div+div{border-left:0;border-top:1px solid var(--line)}
+  .chapter-head{grid-template-columns:64px 1fr}
+  .chapter-no{font-size:52px}
+  .chapter-no .ch-ic{width:34px;height:34px}
+  .chapter-head h2{font-size:28px}
+  .checkup-row{grid-template-columns:1fr;gap:2px}
+  .checkup-row span:last-child{text-align:left}
+}
+@media (max-width:720px){
+  .hero{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="wrap masthead">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3.2v3.4M15 3.2v3.4" stroke="#2f5d50" stroke-width="2.2" stroke-linecap="round"/><path d="M6.2 6.6h11.6v3.4a5.8 5.8 0 0 1-11.6 0z" fill="#2f5d50"/><path d="M12 15.6v1.8a2.7 2.7 0 0 0 2.7 2.7h2.3" stroke="#b5651d" stroke-width="2.2" stroke-linecap="round"/></svg></span>STARRYSEA · 造物手记</div>
+  <div class="edition">FIELD NOTES · 2026.10</div>
+</header>
+
+<style>
+
+/* ===== 记忆小样（本页专用） ===== */
+.mem{max-width:760px;margin:36px auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 22px 16px;box-shadow:5px 7px 0 #d8cdb22e}
+.mem .mem-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--amber);margin:0 0 14px;text-align:center}
+.mem-stage{background:#1d2b26;border:1px solid #2f4239;border-radius:10px;padding:18px;color:#ece9df;font-size:13px}
+.mem-ctrl{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;align-items:center;font-size:12px;color:var(--muted);margin-top:14px}
+.mem-btn{font-family:var(--serif);font-size:13px;letter-spacing:.06em;color:var(--blue);background:none;border:1px solid #b9c7bf;border-radius:100px;padding:7px 16px;cursor:pointer;transition:background .25s,color .25s}
+.mem-btn:hover{background:var(--blue);color:#fff}
+.mem-btn.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.mem-btn:disabled{opacity:.55;cursor:default;color:var(--muted);border-color:#d8d3c4}
+.mem-cap{font-size:11.5px;color:var(--muted);text-align:center;margin:10px 0 0;font-family:var(--mono)}
+/* D1 预算 */
+.bud{display:flex;height:44px;border-radius:8px;overflow:hidden;border:1px solid #2f4239;background:#24332c;position:relative}
+.bud i{display:block;height:100%;transition:width .45s ease;font-style:normal}
+.bud .s1{background:#3f6355}.bud .s2{background:#2f5d50}.bud .s3{background:#5c4a2e}
+.bud .s4{background:#7a5a2e}.bud .s5{background:#4a6b78}.bud .s6{background:#8c3f30}
+.bud-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:11.5px;color:#c9c5b6;font-family:var(--mono)}
+.bud-legend span{display:inline-flex;align-items:center;gap:6px}
+.bud-legend b{width:9px;height:9px;border-radius:2px;display:inline-block}
+.bud-line{display:flex;justify-content:space-between;margin-top:12px;font-family:var(--mono);font-size:12px;color:#d8d3c2}
+.bud-line .over{color:#f0917c}
+.bud-warn{margin-top:10px;font-size:12px;color:#f0b39a;background:#4a2b24;border:1px solid #7a4638;border-radius:8px;padding:8px 12px;display:none}
+.bud-warn.show{display:block}
+.slider-row{display:flex;gap:10px;align-items:center;font-size:12px;color:#c9c5b6}
+.slider-row input{width:150px;accent-color:var(--amber)}
+/* D2 冲突 */
+.fact{background:#24332c;border:1px solid #3a4f45;border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.8}
+.fact .meta{display:block;font-family:var(--mono);font-size:10.5px;color:#9fb0a5;margin-bottom:5px}
+.fact.new{border-color:#8a6a34;background:#2f2d22}
+.fact.dead{opacity:.5;text-decoration:line-through}
+.conflict-row{display:flex;gap:14px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+.conflict-row .fact{flex:1;min-width:210px;max-width:300px}
+.strat-row{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.strat-row button{font-size:12.5px;border-radius:999px;padding:6px 16px;cursor:pointer;border:1px solid #3a4f45;background:#2c3b34;color:#ece9df;font-family:var(--serif)}
+.strat-row button:hover{background:#3a4f45}
+.store{margin-top:14px;border-top:1px dashed #3a4f45;padding-top:12px}
+.store-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:#9fb0a5;margin-bottom:8px}
+.store .fact{margin-bottom:8px}
+.risk{font-family:var(--mono);font-size:11.5px;margin-top:8px;color:#c9c5b6}
+.risk.high{color:#f0917c}
+/* D3 召回 */
+.recall-head{display:flex;gap:8px;align-items:center;font-size:12.5px;color:#c9c5b6;margin-bottom:12px;flex-wrap:wrap}
+.recall-head code{background:#2f4239;color:#e9e5d6;padding:2px 8px;border-radius:5px;font-size:11.5px}
+.rcard{display:grid;grid-template-columns:1fr 96px 60px;gap:10px;align-items:center;background:#24332c;border:1px solid #3a4f45;border-radius:8px;padding:9px 12px;margin-bottom:7px;font-size:12.5px;transition:opacity .3s,border-color .3s,transform .3s}
+.rcard .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcard .bar{height:7px;border-radius:4px;background:#2f4239;overflow:hidden}
+.rcard .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6a34,#c79a4a);width:0;transition:width .35s}
+.rcard .sc{font-family:var(--mono);font-size:11.5px;text-align:right;color:#e0d9c4}
+.rcard.cut{opacity:.28}
+.rcard.pick{border-color:#9a7a3a;box-shadow:0 0 0 1px #9a7a3a inset}
+.rcard.conflict-old .t{color:#f0917c}
+.rank-note{font-family:var(--mono);font-size:11px;color:#9fb0a5;margin-top:10px}
+/* D4 卫生 */
+.hyg-row{display:grid;grid-template-columns:1fr 84px 92px;gap:10px;align-items:center;background:#24332c;border:1px solid #3a4f45;border-radius:8px;padding:9px 12px;margin-bottom:7px;font-size:12.5px;transition:opacity .3s,border-color .3s}
+.hyg-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hyg-row .age{font-family:var(--mono);font-size:11px;color:#9fb0a5;text-align:right}
+.hyg-row .tag{font-family:var(--mono);font-size:10.5px;text-align:center;border-radius:999px;padding:2px 8px;justify-self:end}
+.hyg-row .tag.ok{background:#2f4b3f;color:#a8d0b9}
+.hyg-row .tag.stale{background:#4a3a22;color:#e2b97a}
+.hyg-row .tag.gone{background:#3a2a28;color:#e8a294}
+.hyg-row.faded{opacity:.32}
+.hyg-row.flagged{border-color:#a8462f;box-shadow:0 0 0 1px #a8462f inset}
+.hyg-row.polluted .t{color:#f0917c}
+.hyg-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:#d8d3c2}
+.hyg-stats span{background:#24332c;border:1px solid #3a4f45;border-radius:6px;padding:4px 10px}
+.hyg-stats b{color:#e9c98a}
+@media (prefers-reduced-motion: reduce){ .bud i,.rcard,.hyg-row,.fact{transition:none} }
+</style>
+
+<section class="wrap hero">
+  <div>
+    <p class="eyebrow"><span>造物手记</span><strong>写给想把 Agent 做深的人</strong></p>
+    <h1>给 Agent 装上<em>记忆<svg class="scrib" viewBox="0 0 140 12" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M3 8 C 28 3, 55 11, 84 6 S 126 3, 137 7" fill="none" stroke="#b5651d" stroke-width="3.6" stroke-linecap="round"/></svg></em></h1>
+    <div class="dek-wrap">
+      <p class="dek-tag">dek / 摘要</p>
+      <p class="dek">上下文窗口不是记忆，塞进去不是记住，记得多也不是记得好。这四个月我把自己的一整套记忆系统当实验品养着：几十条事实、每一条一个文件、索引管路由、链接织成图——这篇文章把它的写入、召回、遗忘、验收，一层层拆开。</p>
+    </div>
+    <div class="hero-meta">
+      <span class="pill">约 35 分钟</span>
+      <span class="pill">6 章 · 4 枚可玩小样</span>
+      <span class="pill">更新于 2026.10.20</span>
+    </div>
+  </div>
+  <figure class="art">
+    <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-hero.webp" alt="涂鸦：小机器人拉开一柜索引卡抽屉，卡片之间用细线相连，像一张思维导图" loading="eager"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+    <figcaption><b>图 0</b>记忆不是仓库，是索引。<small>doodle · 造物手记插图</small></figcaption>
+  </figure>
+</section>
+
+<main>
+<div class="wrap">
+<div class="opening">
+  <p class="lead">先说一句得罪人的话：大部分「Agent 记忆」的讨论，讨论的其实是「怎么把更多东西塞进上下文」。真正的记忆工程不在那儿——它在于<strong>什么时候忘、忘多少、以及凭什么相信还记得的东西</strong>。</p>
+  <p>这篇不写综述，写解剖。原料是我自己的一台记忆系统：它已经陪我做完了五六个文章站、几轮项目迭代、无数次“上次那个坑是怎么填的”。它很土——就是一堆 Markdown 文件；也很硬——四个月里它救回来的时间，比我写在它身上的时间多得多。下面每一章，都对应它身上一个具体的部件。</p>
+  <p class="scope">文中所有数字与事故均来自这套系统与同源的几个 Agent 工程的真实记录；四枚小样可在页面上直接操作，参数是你改的，规律是真的。</p>
+</div>
+  <nav class="toc" aria-label="章节索引">
+    <a href="#ch1"><b>01</b>上下文不是记忆</a>
+    <a href="#ch2"><b>02</b>三层结构与索引</a>
+    <a href="#ch3"><b>03</b>写入：六道闸</a>
+    <a href="#ch4"><b>04</b>召回：不是搜索</a>
+    <a href="#ch5"><b>05</b>遗忘与卫生</a>
+    <a href="#ch6"><b>06</b>怎么证明它有用</a>
+  </nav>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch1">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="8" y="16" width="32" height="24" rx="4" fill="#e7efe8" stroke="#2f5d50" stroke-width="2.2"/><path d="M8 22h32" stroke="#2f5d50" stroke-width="2"/><path d="M20 16v-4a4 4 0 0 1 8 0v4" stroke="#2f5d50" stroke-width="2.2" fill="none"/><path d="M16 30h6M26 30h6" stroke="#b5651d" stroke-width="2.4" stroke-linecap="round"/></svg><span>01</span></div>
+    <div>
+      <p class="chapter-label">NOT CONTEXT</p>
+      <h2>上下文不是记忆：三个把人带沟里的错觉</h2>
+      <p>窗口从 8k 涨到 200k、涨到 1M，最容易得出的错误结论是：“记忆问题被窗口解决了”。</p>
+      <span class="chapter-stamp">拆解 · 01</span>
+    </div>
+  </div>
+  <div class="reading">
+    <p>错觉一：<strong>窗口够大，就不需要记忆</strong>。窗口是工作台，记忆是仓库。工作台再大，你也得决定今天把什么搬上来——而且搬上来的东西越多，模型在里面的注意力被稀释得越厉害。你可以把一整个仓库倒在一个 1M 的窗口里，然后得到一个「什么都看到、什么都没抓住」的回复。</p>
+    <p>错觉二：<strong>记住 = 塞进去</strong>。塞进去的是文本，不是知识。同一件事说了五遍、时间线互相打架、旧结论压在最新结论上面——这些不是“信息更多”，是噪声更多。记忆的第一性原理不是“存”，是<strong>可被正确召回</strong>。</p>
+    <p>错觉三：<strong>记得越多越好</strong>。每多一条过期事实，就多一次把模型带向旧世界的机会。一个只有三十条事实、但条条新鲜可验的记忆，比三百条半真半假的记忆值钱得多。</p>
+    <p>下面这枚小样把第一层错觉演出来：同一套固定开销下，记忆和历史在抢同一个预算。把它切到 64k 的窗口，看看谁先被挤出去。</p>
+  </div>
+  <figure class="art" style="max-width:520px;margin:10px auto 30px">
+    <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-suitcase.webp" alt="涂鸦：小机器人在给一个塞得过满的行李箱拉拉链，纸和书从四边露出来" loading="lazy"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+    <figcaption><b>图 0.5</b>窗口再大，也只是一个行李箱。<small>doodle · 造物手记插图</small></figcaption>
+  </figure>
+  <div class="mem">
+    <p class="mem-tag">小样 01 · 上下文预算</p>
+    <div class="mem-stage">
+      <div class="bud" id="b-bar">
+        <i class="s1" id="b-s1"></i><i class="s2" id="b-s2"></i><i class="s3" id="b-s3"></i><i class="s4" id="b-s4"></i><i class="s5" id="b-s5"></i><i class="s6" id="b-s6"></i>
+      </div>
+      <div class="bud-legend">
+        <span><b style="background:#3f6355"></b>系统提示</span>
+        <span><b style="background:#2f5d50"></b>工具说明</span>
+        <span><b style="background:#5c4a2e"></b>项目规则</span>
+        <span><b style="background:#7a5a2e"></b>对话历史</span>
+        <span><b style="background:#4a6b78"></b>召回记忆</span>
+        <span><b style="background:#8c3f30"></b>输出预留</span>
+      </div>
+      <div class="bud-line"><span id="b-total">已用 0k / 0k</span><span id="b-left">剩余 0k</span></div>
+      <div class="bud-warn" id="b-warn"></div>
+    </div>
+    <div class="mem-ctrl">
+      <span class="slider-row">历史 <input id="b-h" type="range" min="8" max="120" step="2" value="56"/><b id="b-hv">56k</b></span>
+      <span class="slider-row">记忆 <input id="b-m" type="range" min="0" max="60" step="2" value="16"/><b id="b-mv">16k</b></span>
+      <button class="mem-btn" id="b-64" type="button">64k 窗口</button>
+      <button class="mem-btn on" id="b-128" type="button">128k</button>
+      <button class="mem-btn" id="b-200" type="button">200k</button>
+    </div>
+    <p class="mem-cap" id="b-cap">固定开销 30k：系统提示 6k · 工具 12k · 规则 6k · 输出预留 6k。剩下的才是历史与记忆的战场。</p>
+  </div>
+  <div class="reading">
+    <div class="note"><p>一个真实的账单：我这套工具集里光工具说明就占了 12k 上下。也就是说，在 64k 窗口里，还没开始干活，四分之一已经没了。**“记忆不够”很多时候不是记忆的问题，是固定开销太肥。**</p></div>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch2">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="8" width="30" height="9" rx="2" fill="#e7efe8" stroke="#2f5d50" stroke-width="2"/><rect x="9" y="20" width="30" height="9" rx="2" fill="#fffcf4" stroke="#2f5d50" stroke-width="2"/><rect x="9" y="32" width="30" height="9" rx="2" fill="#e7efe8" stroke="#2f5d50" stroke-width="2"/><path d="M33 12h3M33 24h3M33 36h3" stroke="#b5651d" stroke-width="2.2" stroke-linecap="round"/></svg><span>02</span></div>
+    <div>
+      <p class="chapter-label">THREE TIERS</p>
+      <h2>三层结构与一根索引：记忆的解剖图</h2>
+      <p>把“记忆”当成一个整体讨论，永远不会得出可执行的设计。它至少是三层，各层有自己的物理规律。</p>
+      <span class="chapter-stamp">拆解 · 02</span>
+    </div>
+  </div>
+  <div class="reading">
+    <figure class="art" style="max-width:560px;margin:8px auto 30px">
+      <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-tiers.webp" alt="涂鸦：三层抽屉柜剖面，顶层是小记事本，中层是书，底层是卡片档案，机器人从底层取卡送到顶层" loading="lazy"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+      <figcaption><b>图 1</b>工作记忆、情景记忆、语义记忆——三个抽屉，三种物理。<small>doodle · 造物手记插图</small></figcaption>
+    </figure>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <caption>三层记忆：容量、寿命、失效方式各不相同</caption>
+      <thead><tr><th>层</th><th>放什么</th><th>容量 / 寿命</th><th>失效方式</th></tr></thead>
+      <tbody>
+        <tr><td>工作记忆</td><td>当前任务的目标、约束、最近几步</td><td>上下文窗口内，任务结束即弃</td><td>被截断（静默丢失）</td></tr>
+        <tr><td>情景记忆</td><td>发生过什么：日志、时间线、决策记录</td><td>磁盘级，按需检索</td><td>找不回来（索引坏了）</td></tr>
+        <tr><td>语义记忆</td><td>提炼后的稳定事实：偏好、约定、结论</td><td>几十到几百条，长期</td><td>过时、矛盾、被污染</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="reading">
+    <h3>把索引当路由器，把事实当文件</h3>
+    <p>我用的这套语义记忆非常土：<strong>一条事实一个 Markdown 文件</strong>，文件头是一小段结构化元数据——名字、一句话描述、类型（用户/反馈/项目/参考）；正文是事实本身，末尾用 <code>[[名字]]</code> 链接到相关事实；外加一个 <code>MEMORY.md</code> 索引，每条一行“标题 + 链接 + 一句钩子”。</p>
+    <p>为什么这么分？因为三层各自的“读法”不同：索引是<strong>每次都要读的那一层</strong>——它必须极短、极稳、只负责“路由”；事实文件是<strong>按需打开的那一层</strong>——它必须自包含、可独立理解；链接是<strong>图的那一层</strong>——它让“同一条事实”在多个语境里被找到。</p>
+    <div class="template">
+      <div class="template-head"><span>一条事实的最小形状</span><button class="copy-button" type="button">复制</button></div>
+      <pre><code>---
+name: gpt-image-only-rule
+description: 生图只用 GPT 系；失败要停下提醒，不许换其他模型顶包
+metadata:
+  type: feedback
+---
+
+2026-10-17 用户明确要求：只用 gpt-image-2.x……
+
+**Why:** GPT 系出图的质感和服从度他认……
+**How to apply:** 渠道全挂就停下汇报，禁止降级。
+
+相关：[[ai-image-studio-channels]]、[[playable-storybook-site]]</code></pre>
+      <p class="copy-status"></p>
+    </div>
+    <div class="note"><p>注意 <code>description</code> 这一行不是给读者看的摘要，是给<strong>召回器</strong>看的。召回器先拿它和当前任务比对、决定要不要打开这个文件——它是索引的索引。这一行的写法值得单独练：写“用户在 2026-09 学过 python”，而不是“关于 python”。</p></div>
+    <p>再说一个反直觉的工程结论：<strong>文件系统是很好的记忆底座</strong>。不是因为它先进，而是因为它给你三样模型给不了的东西——可读（人能用 grep 查）、可版本化（git diff 能看见每一次记忆的变更）、可回滚（写坏了 checkout）。记忆系统第一年最常发生的事故不是“记不住”，是“记错了还改不回来”。</p>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch3">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 30h36" stroke="#2f5d50" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="34" r="3" fill="#2f5d50"/><circle cx="24" cy="34" r="3" fill="#2f5d50"/><circle cx="36" cy="34" r="3" fill="#2f5d50"/><rect x="16" y="10" width="16" height="14" rx="2" fill="#e7efe8" stroke="#2f5d50" stroke-width="2"/><path d="M20 17h8" stroke="#b5651d" stroke-width="2.4" stroke-linecap="round"/><path d="M24 24v5" stroke="#2f5d50" stroke-width="2"/></svg><span>03</span></div>
+    <div>
+      <p class="chapter-label">WRITE PATH</p>
+      <h2>写入：六道闸，一次只放一条好事实过去</h2>
+      <p>记忆系统的质量，八成在写入那一刻就定了。读取再聪明，也救不回一条写歪的记忆。</p>
+      <span class="chapter-stamp">拆解 · 03</span>
+    </div>
+  </div>
+  <div class="reading">
+    <figure class="art" style="max-width:560px;margin:8px auto 30px">
+      <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-write.webp" alt="涂鸦：传送带上的卡片被盖章，两张几乎一样的卡片合并成一张，成品滑进带标签的格子里" loading="lazy"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+      <figcaption><b>图 2</b>写入不是“存一下”，是一条带质检的流水线。<small>doodle · 造物手记插图</small></figcaption>
+    </figure>
+  </div>
+  <ol class="principles-list">
+    <li><b>闸一 · 值不值得记</b><p>只记“下次会用到、且不写下来就会忘”的东西。一次性的任务状态不记（任务结束就死），能从代码里读出来的事实不记（代码才是源）。判据一句话：<strong>这条事实过期了吗？过期后有没有害？</strong></p></li>
+    <li><b>闸二 · 记成什么形状</b><p>一条事实一个文件，而不是把十条挤进一个大日志。粒度越细，后面越好改、越好删、越好链接。这也是一句老话的现代版：写时多花一秒，读时省下一小时。</p></li>
+    <li><b>闸三 · 撞车了怎么办</b><p>新事实和旧事实矛盾时，只有三种正确姿势：取代（旧档案里标 superseded，新事实指向它）、合并（写成一个带时间线的事实）、或明确保留两条并标注“尚未裁决”。<strong>最差的姿势是追加</strong>——让两条矛盾的记忆并存，然后祈祷召回器选对。</p></li>
+    <li><b>闸四 · 留证据</b><p>每条事实带来源：哪一天、因为什么事故、链接到哪次复盘。没有来源的事实，在冲突时永远输——因为你没法判断它是否过期。</p></li>
+    <li><b>闸五 · 版本化</b><p>记忆是文件，文件在 git 里。写入是 commit，改错是 revert。别小看这一条：它把“记忆污染”从灾难降级成一次回滚。</p></li>
+    <li><b>闸六 · 写明触发条件</b><p>描述里要写“什么时候该用它”，而不只是“它是什么”。记忆不是百科全书，是行动指南——召回器需要的是“该不该现在打开我”，不是一段简介。</p></li>
+  </ol>
+  <div class="reading">
+    <p>第三道闸值得单独玩一遍。下面这张冲突卡是真实形状：三个月前的决定与今天的决定撞车了。三种策略，你各点一次，看看记忆仓库变成什么样。</p>
+  </div>
+  <div class="mem">
+    <p class="mem-tag">小样 02 · 写入冲突</p>
+    <div class="mem-stage">
+      <div class="conflict-row">
+        <div class="fact" id="c-old"><span class="meta">旧事实 · 2026-03 · 来源：架构复盘</span>部署目标：K8s 集群（三节点，Helm 编排）</div>
+        <div class="fact new" id="c-new"><span class="meta">新事实 · 2026-10 · 来源：成本事故复盘</span>部署目标：改回 Docker Compose 单机，先省钱</div>
+      </div>
+      <div class="strat-row">
+        <button id="s-append" type="button">策略 A · 追加</button>
+        <button id="s-merge" type="button">策略 B · 合并</button>
+        <button id="s-super" type="button">策略 C · 取代</button>
+        <button id="s-reset" type="button">重置</button>
+      </div>
+      <div class="store">
+        <p class="store-title" id="c-title">仓库现状 · 2 条事实</p>
+        <div id="c-store"></div>
+        <p class="risk" id="c-risk">矛盾风险：评一下三种策略的落点。</p>
+      </div>
+    </div>
+    <p class="mem-cap" id="c-cap">三种策略都“记住了”，但只有一种让未来的召回是安全的。</p>
+  </div>
+  <div class="reading">
+    <div class="note"><p>真实事故：我曾在同一套记忆里留下“git push 走 https”和“必须切 SSH”两条结论，相隔一个月，都没写触发条件。结果下一轮会话里，Agent 先抽到旧结论，白折腾了二十分钟。从那以后，写入闸二里多了一条：<strong>矛盾必须当天裁决，不许过夜。</strong></p></div>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch4">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 8v8" stroke="#2f5d50" stroke-width="2.2"/><path d="M10 18h28" stroke="#2f5d50" stroke-width="2.2" stroke-linecap="round"/><path d="M10 18l-4 8h8zM38 18l-4 8h8z" fill="#e7efe8" stroke="#2f5d50" stroke-width="1.8" stroke-linejoin="round"/><path d="M24 18v12" stroke="#2f5d50" stroke-width="2.2"/><path d="M14 38h20" stroke="#b5651d" stroke-width="2.6" stroke-linecap="round"/></svg><span>04</span></div>
+    <div>
+      <p class="chapter-label">RECALL</p>
+      <h2>召回：不是搜索，是一次带预算的排序</h2>
+      <p>写入决定了记忆的“质量上限”，召回决定了它的“命中下限”。而召回最容易被做错的地方，是只按相似度排序。</p>
+      <span class="chapter-stamp">拆解 · 04</span>
+    </div>
+  </div>
+  <div class="reading">
+    <figure class="art" style="max-width:560px;margin:8px auto 30px">
+      <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-recall.webp" alt="涂鸦：机器人站在秤前，卡片漂浮在秤上方，每张卡片带星标，最高的那张被送进窗口" loading="lazy"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+      <figcaption><b>图 3</b>召回是一杆秤：相关、新鲜、重要，三样东西一起称。<small>doodle · 造物手记插图</small></figcaption>
+    </figure>
+  </div>
+  <div class="reading">
+    <p>一次像样的召回至少要走四步：</p>
+  </div>
+  <ol class="principles-list">
+    <li><b>候选：多渠道取并集</b><p>关键词命中（精确、便宜）、向量相似（模糊、能跨措辞）、图邻居（顺着链接走一步）、最近使用（上下文热度）。只靠一种，会稳定漏掉某一类。</p></li>
+    <li><b>打分：三个维度，缺一不可</b><p>相关性解决“像不像”，新鲜度解决“还对不对”，重要性解决“值不值得占位置”。只按相关性排，最典型的事故就是：召回了一条 2024 年的“最佳实践”，它确实很像，但已经被推翻。</p></li>
+    <li><b>预算：名额有限，按分数截断</b><p>召回不是越多越好。给召回开一个 6k 的预算，按分数从高到低塞，塞不下就停。**预算就是记忆的“注意力带宽”**——它比排序算法更能决定记忆系统的实际效果。</p></li>
+    <li><b>注入：把事实变成可执行的内容</b><p>同一条事实，用“事实陈述”注入还是用“触发条件 + 动作”注入，效果差很远。记忆进上下文时，最好带着“当什么情况发生时，该怎么做”的形状。</p></li>
+  </ol>
+  <div class="mem">
+    <p class="mem-tag">小样 03 · 召回打分</p>
+    <div class="mem-stage">
+      <div class="recall-head">当前任务：<code>这个项目的部署方式是什么？</code></div>
+      <div id="r-list"></div>
+      <p class="rank-note" id="r-note">按“相关 0.6 · 新鲜 0.2 · 重要 0.2”排序，预算 3 条。</p>
+    </div>
+    <div class="mem-ctrl">
+      <span class="slider-row">相关 <input id="r-w1" type="range" min="0" max="1" step="0.1" value="0.6"/><b id="r-w1v">0.6</b></span>
+      <span class="slider-row">新鲜 <input id="r-w2" type="range" min="0" max="1" step="0.1" value="0.2"/><b id="r-w2v">0.2</b></span>
+      <span class="slider-row">重要 <input id="r-w3" type="range" min="0" max="1" step="0.1" value="0.2"/><b id="r-w3v">0.2</b></span>
+      <button class="mem-btn" id="r-reset" type="button">复位权重</button>
+    </div>
+    <p class="mem-cap" id="r-cap">把“新鲜”与“重要”一起拉到 0：新旧两条部署结论的分数会从差 0.22 缩到只差 0.01——排序从此由噪声决定。</p>
+  </div>
+  <div class="reading">
+    <div class="note"><p>工程上最划算的一招：<strong>把“新鲜度”写成衰减函数而不是布尔值</strong>。事实不是“有效/失效”，而是“30 天前 0.9、90 天前 0.6、一年前 0.3”。这样即使排序出了偏差，旧事实也不会瞬间挤掉新的——它是慢慢退潮的。</p></div>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch5">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M10 40l6-22" stroke="#2f5d50" stroke-width="2.6" stroke-linecap="round"/><path d="M16 18l10 3-4 9z" fill="#e7efe8" stroke="#2f5d50" stroke-width="1.8" stroke-linejoin="round"/><rect x="28" y="14" width="12" height="8" rx="1.5" fill="#fffcf4" stroke="#2f5d50" stroke-width="1.8"/><circle cx="36" cy="30" r="4" fill="none" stroke="#b5651d" stroke-width="2.2"/><path d="M33 27l6 6" stroke="#b5651d" stroke-width="2.2" stroke-linecap="round"/></svg><span>05</span></div>
+    <div>
+      <p class="chapter-label">HYGIENE</p>
+      <h2>遗忘与卫生：记忆会腐烂、会中毒、会自我强化</h2>
+      <p>人脑忘记是特性，机器记忆忘记是功能。没有遗忘的记忆系统，一定会烂掉。</p>
+      <span class="chapter-stamp">拆解 · 05</span>
+    </div>
+  </div>
+  <div class="reading">
+    <figure class="art" style="max-width:560px;margin:8px auto 30px">
+      <button class="art-button" type="button" aria-label="放大查看插图"><img src="assets/fig-hygiene.webp" alt="涂鸦：机器人用扫帚把发黄的卡片扫进垃圾桶，柜子上两张卡片被红圈标出，旁边给一张新卡片补墨" loading="lazy"/><span class="zoom-hint">点击放大 · Esc 关闭</span></button>
+      <figcaption><b>图 4</b>记忆需要定期打扫：扫掉过期的，标记互相打架的，给活的补水。<small>doodle · 造物手记插图</small></figcaption>
+    </figure>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <caption>四种记忆病，四种处方</caption>
+      <thead><tr><th>病</th><th>症状</th><th>处方</th></tr></thead>
+      <tbody>
+        <tr><td>腐烂</td><td>三个月前还成立的事实，今天照旧被召回</td><td>TTL + 新鲜度衰减；过期进“待复核”队列而不是直接删</td></tr>
+        <tr><td>冲突</td><td>两条事实互相打架，召回随机选一个</td><td>写入时强制裁决（取代/合并）；巡检时标红待裁决对</td></tr>
+        <tr><td>污染</td><td>错误来源被当成事实；一次误记长期扩散</td><td>证据链（来源 + 日期 + 关联事故）；可疑来源打标，不参与召回</td></tr>
+        <tr><td>膨胀</td><td>索引越来越长，每次都要读一遍</td><td>索引只留路由钩子；超过上限就合并同类项、降级冷事实</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="reading">
+    <p>还有一种更隐蔽的病：<strong>自我强化</strong>。Agent 把自己的输出写回记忆，下一轮又把它当作“事实”读进来——一次小的偏差就这样被逐步镀成“经验”。对策是把记忆分成两栏：<strong>观察到的事实</strong>与<strong>推导出的结论</strong>，后者必须带置信度和复核日期。</p>
+    <p>下面这枚小样把时间轴交给你：往前推 180 天，看哪些卡片该退役、哪两张该被标红、哪张已经被污染源带歪了。</p>
+  </div>
+  <div class="mem">
+    <p class="mem-tag">小样 04 · 记忆卫生</p>
+    <div class="mem-stage">
+      <div id="h-list"></div>
+      <div class="hyg-stats" id="h-stats"></div>
+    </div>
+    <div class="mem-ctrl">
+      <span class="slider-row">经过时间 <input id="h-time" type="range" min="0" max="365" step="5" value="0"/><b id="h-timev">0 天</b></span>
+      <button class="mem-btn" id="h-gc" type="button">执行一次 GC</button>
+      <button class="mem-btn" id="h-reset" type="button">重置</button>
+    </div>
+    <p class="mem-cap" id="h-cap">TTL 到期不是“删除”，是“进入待复核”——先降权，再问人。</p>
+  </div>
+  <div class="reading">
+    <div class="note"><p>我这套系统里最值钱的一个习惯：<strong>记忆文件定期做一次“体检”式重读</strong>。不是为了改文笔，是为了抓三件事——过期结论、互相矛盾的条目、以及“当时写得含糊、现在看不懂”的描述。每一轮体检，平均能抓出 2–3 条该退役的旧事实。</p></div>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="chapter" id="ch6">
+  <div class="chapter-head">
+    <div class="chapter-no"><svg class="ch-ic" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="8" width="24" height="32" rx="2.5" fill="#fffcf4" stroke="#2f5d50" stroke-width="2.2"/><path d="M14 16h14M14 22h14M14 28h8" stroke="#2f5d50" stroke-width="2" stroke-linecap="round"/><path d="M30 30l5 5 7-9" stroke="#b5651d" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>06</span></div>
+    <div>
+      <p class="chapter-label">PROOF</p>
+      <h2>怎么证明它有用：把“感觉记得住”换成四个数</h2>
+      <p>记忆系统最容易被自欺：它看起来在帮忙。要证明它真的在帮忙，得让它考试。</p>
+      <span class="chapter-stamp">拆解 · 06</span>
+    </div>
+  </div>
+  <div class="reading">
+    <p>四个指标，按造价从低到高：</p>
+    <ol class="principles-list">
+      <li><b>召回命中率</b><p>准备 30 个「这次该想起什么」的查询，人工标注正确答案，测 Top-3 命中率。造价：一个下午。收益：这是唯一能反映“记忆到底有没有用”的数字。</p></li>
+      <li><b>矛盾检出率</b><p>故意埋 10 对互相矛盾的事实，看系统能不能在巡检时标出来。漏检的矛盾，会在真实任务里变成一次先验错误。</p></li>
+      <li><b>回归集</b><p>把“已经踩过的坑”写成固定用例：给出任务描述，要求 Agent 必须引用某条记忆。每次改记忆系统跑一遍，防止修了 A 忘了 B。</p></li>
+      <li><b>A/B：带记忆 vs 不带记忆</b><p>同一批任务跑两遍——有记忆、无记忆，比成功率、比人工纠错次数、比平均轮数。这是唯一能回答“值不值得”的实验；如果 A/B 打平，说明你记的可能都是废话。</p></li>
+    </ol>
+    <div class="note"><p>最诚实的指标其实是<strong>“被纠正的次数”</strong>：每轮任务里，人需要说几次“不对，不是这样”。记忆做得好，这个数字会稳定下降；记忆做歪了，它会稳定上升——因为它开始自信地重复错误。</p></div>
+    <h3>上线前的记忆体检表</h3>
+  </div>
+  <div class="checklist">
+    <label class="check-item"><input type="checkbox" data-key="m01"/><span><b>每条事实都有来源与日期</b><small>没有证据的事实，冲突时必输。来源至少写到“哪次事故/复盘”。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m02"/><span><b>矛盾当天裁决</b><small>取代或合并；最差的姿势是让两条并存。裁决记录可回查。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m03"/><span><b>描述写的是“何时用我”</b><small>不是简介，是路由钩子。召回器靠它决定要不要打开。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m04"/><span><b>召回带预算和截断</b><small>按分数取 Top-K，塞不下就停；预算比排序更影响效果。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m05"/><span><b>新鲜度是衰减，不是布尔</b><small>旧事实慢慢退潮，而不是“突然还有效”。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m06"/><span><b>有 TTL 与待复核队列</b><small>到期先降权，再问人；直接删会误杀仍然成立的长期事实。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m07"/><span><b>观察与推导分栏</b><small>推导结论必须带置信度和复核日期，防止自我强化。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m08"/><span><b>记忆在版本控制里</b><small>写坏了能回滚；每次变更可 diff。这是污染的最后一道保险。</small></span></label>
+    <label class="check-item"><input type="checkbox" data-key="m09"/><span><b>跑过 A/B 对照</b><small>带记忆 vs 不带记忆，比成功率与人工纠错次数。</small></span></label>
+  </div>
+</section>
+</div>
+
+<div class="wrap">
+<section class="ending">
+  <h2>结语：慢记忆，快模型</h2>
+  <div class="reading">
+    <p>模型会越来越快、越来越长、越来越便宜。而这篇文章里的每一条——粒度、裁决、衰减、证据、预算——都不会因此失效，因为它们解决的不是“能力不足”，而是<strong>“状态的管理”</strong>。状态管理没有摩尔定律。</p>
+    <p>所以我的建议反而很朴：先从一张索引表、一个事实一个文件开始，把写入的六道闸装起来。等它长到两百条，你自然会遇到遗忘与污染的问题——那时候你已经有一个可以体检、可以回滚、可以做 A/B 的系统了。到那一步，记忆就不再是“给模型的提示词”，而是你产品的一部分。</p>
+  </div>
+  <div class="quickcard">
+    <p class="diagram-label">速查卡 · QUICK REFERENCE</p>
+    <ul>
+      <li>窗口是工作台，记忆是仓库；塞进去 ≠ 记住</li>
+      <li>三层：工作 / 情景 / 语义，各有各的失效方式</li>
+      <li>一条事实一个文件；索引只做路由；<code>[[链接]]</code> 织图</li>
+      <li>写入六道闸：值得记 → 粒度 → 裁决 → 证据 → 版本 → 触发条件</li>
+      <li>召回 = 候选并集 + 三维打分 + 预算截断 + 可执行注入</li>
+      <li>新鲜度用衰减；TTL 进待复核；观察与推导分栏</li>
+      <li>证明有用：命中率、矛盾检出、回归集、A/B（看“被纠正次数”）</li>
+    </ul>
+  </div>
+  <p class="source-note">本文案例来自作者自建的文件式记忆系统（索引 + 单事实文件 + 链接图，git 版本化），以及同源 Agent 工程中的降级链、时间线日志与可回滚写入实践。四枚小样为原生 DOM 实现，参数可控，逻辑即文中所述。</p>
+</section>
+</div>
+
+</main>
+
+<footer class="wrap site-foot">
+  <div class="foot-meta">STARRYSEA · 造物手记 · 更新于 2026.10.20<br/>案例来自作者自建的文件式记忆系统与同源 Agent 工程。</div>
+  <button class="print-button" id="printBtn" type="button">打印 / 保存 PDF</button>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="插图预览">
+  <button class="lightbox-close" id="lightboxClose" type="button">关闭 · Esc</button>
+  <img id="lightboxImg" src="" alt=""/>
+  <div class="lightbox-hint">点击背景或按 Esc 关闭</div>
+</div>
+
+<script>
+(function(){
+  var progress=document.getElementById("progress");
+  function onScroll(){
+    var h=document.documentElement;
+    var max=h.scrollHeight-h.clientHeight;
+    progress.style.transform="scaleX("+(max>0?(h.scrollTop||0)/max:0)+")";
+  }
+  addEventListener("scroll",onScroll,{passive:true});onScroll();
+
+  var lb=document.getElementById("lightbox"),lbImg=document.getElementById("lightboxImg");
+  document.querySelectorAll(".art-button img").forEach(function(img){
+    img.closest("button").addEventListener("click",function(){
+      lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add("open");document.body.style.overflow="hidden";
+    });
+  });
+  function closeLb(){lb.classList.remove("open");document.body.style.overflow="";}
+  lb.addEventListener("click",function(e){if(e.target!==lbImg)closeLb();});
+  document.getElementById("lightboxClose").addEventListener("click",closeLb);
+  addEventListener("keydown",function(e){if(e.key==="Escape")closeLb();});
+
+  document.querySelectorAll(".copy-button").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var code=btn.closest(".template").querySelector("pre").innerText;
+      var done=function(){btn.textContent="已复制";setTimeout(function(){btn.textContent="复制";},1600);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(done,done);}
+      else{var ta=document.createElement("textarea");ta.value=code;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);done();}
+    });
+  });
+
+  var KEY="cost-notes-checklist",saved={};
+  try{saved=JSON.parse(localStorage.getItem(KEY)||"{}");}catch(e){}
+  document.querySelectorAll(".check-item input").forEach(function(box){
+    var k=box.dataset.key;if(saved[k])box.checked=true;
+    box.addEventListener("change",function(){saved[k]=box.checked;try{localStorage.setItem(KEY,JSON.stringify(saved));}catch(e){}});
+  });
+
+  var reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var fxEls = [].slice.call(document.querySelectorAll(".ch-ic,.death-icon,.step-ic,.checkup,.art,.mem"));
+  if(!reduceMotion && fxEls.length){
+    fxEls.forEach(function(el){ el.classList.add("fx"); });
+    var fxReveal = function(el){
+      if(el.classList.contains("fx-in")) return;
+      el.classList.add("fx-in");
+      setTimeout(function(){ el.classList.remove("fx"); }, 1400);
+    };
+    var fxCheck = function(){
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      for(var i = 0; i < fxEls.length; i++){
+        var el = fxEls[i];
+        if(el.classList.contains("fx-in")) continue;
+        var r = el.getBoundingClientRect();
+        if(r.top < vh - 30 && r.bottom > 0) fxReveal(el);
+      }
+    };
+    var fxLast = 0;
+    addEventListener("scroll", function(){
+      var now = Date.now();
+      if(now - fxLast > 120){ fxLast = now; fxCheck(); }
+    }, { passive:true });
+    addEventListener("resize", fxCheck);
+    addEventListener("load", fxCheck);
+    fxCheck();
+    var fxBorn = Date.now();
+    var fxTimer = setInterval(function(){
+      fxCheck();
+      if(document.querySelectorAll(".fx").length === 0 || Date.now() - fxBorn > 60000) clearInterval(fxTimer);
+    }, 800);
+  }
+
+  document.getElementById("printBtn").addEventListener("click",function(){window.print();});
+})();
+</script>
+<script id="mem-widgets">
+(function(){
+  "use strict";
+
+  /* ---------- D1 上下文预算 ---------- */
+  var FIXED = { s1: 6, s2: 12, s3: 6, s6: 6 };   // 系统提示 / 工具 / 规则 / 输出预留
+  var win = 128, hist = 56, mem = 16;
+  var b = {
+    bar: document.getElementById("b-bar"),
+    s1: document.getElementById("b-s1"), s2: document.getElementById("b-s2"), s3: document.getElementById("b-s3"),
+    s4: document.getElementById("b-s4"), s5: document.getElementById("b-s5"), s6: document.getElementById("b-s6"),
+    total: document.getElementById("b-total"), left: document.getElementById("b-left"),
+    warn: document.getElementById("b-warn"), cap: document.getElementById("b-cap"),
+    h: document.getElementById("b-h"), hv: document.getElementById("b-hv"),
+    m: document.getElementById("b-m"), mv: document.getElementById("b-mv")
+  };
+  function renderBudget(){
+    var fixed = FIXED.s1 + FIXED.s2 + FIXED.s3 + FIXED.s6;
+    var used = fixed + hist + mem;
+    var scale = Math.max(win, used);
+    function pct(v){ return (v / scale * 100).toFixed(2) + "%"; }
+    b.s1.style.width = pct(FIXED.s1); b.s2.style.width = pct(FIXED.s2);
+    b.s3.style.width = pct(FIXED.s3); b.s6.style.width = pct(FIXED.s6);
+    b.s4.style.width = pct(hist); b.s5.style.width = pct(mem);
+    b.total.textContent = "已用 " + used + "k / " + win + "k";
+    var left = win - used;
+    b.left.textContent = left >= 0 ? "剩余 " + left + "k" : "超出 " + (-left) + "k";
+    b.left.className = left >= 0 ? "" : "over";
+    if (left < 0){
+      var cut = Math.min(hist, -left);
+      b.warn.classList.add("show");
+      b.warn.textContent = "超预算 " + (-left) + "k：最先被裁掉的是对话历史——最早 " + cut + "k（约 " + Math.round(cut / 1.2) + " 轮）会被静默丢弃。记忆一点没少，丢的是上下文。";
+    } else {
+      b.warn.classList.remove("show");
+    }
+    b.cap.textContent = "固定开销 " + fixed + "k：系统提示 " + FIXED.s1 + "k · 工具 " + FIXED.s2 + "k · 规则 " + FIXED.s3 + "k · 输出预留 " + FIXED.s6 + "k。历史 " + hist + "k，记忆 " + mem + "k。";
+  }
+  b.h.addEventListener("input", function(){ hist = +b.h.value; b.hv.textContent = hist + "k"; renderBudget(); });
+  b.m.addEventListener("input", function(){ mem = +b.m.value; b.mv.textContent = mem + "k"; renderBudget(); });
+  function setWin(w, btn){
+    win = w;
+    ["b-64", "b-128", "b-200"].forEach(function(id){ document.getElementById(id).classList.toggle("on", id === btn); });
+    renderBudget();
+  }
+  document.getElementById("b-64").addEventListener("click", function(){ setWin(64, "b-64"); });
+  document.getElementById("b-128").addEventListener("click", function(){ setWin(128, "b-128"); });
+  document.getElementById("b-200").addEventListener("click", function(){ setWin(200, "b-200"); });
+  renderBudget();
+
+  /* ---------- D2 写入冲突 ---------- */
+  var storeTitle = document.getElementById("c-title");
+  var storeBox = document.getElementById("c-store");
+  var riskEl = document.getElementById("c-risk");
+  var capEl = document.getElementById("c-cap");
+  var stratBtns = ["s-append", "s-merge", "s-super"].map(function(id){ return document.getElementById(id); });
+  function factHTML(cls, meta, body){
+    return '<div class="fact ' + cls + '"><span class="meta">' + meta + '</span>' + body + '</div>';
+  }
+  function strategy(kind){
+    stratBtns.forEach(function(btn){ btn.disabled = true; });
+    var html = "";
+    if (kind === "append"){
+      html = factHTML("", "2026-03 · K8s 部署决定", "部署目标：K8s 集群（三节点，Helm 编排）")
+           + factHTML("new", "2026-10 · Compose 回退决定", "部署目标：改回 Docker Compose 单机，先省钱");
+      storeTitle.textContent = "仓库现状 · 2 条事实并存";
+      riskEl.className = "risk high";
+      riskEl.textContent = "矛盾风险：高。两条事实同时可召回，谁排前面取决于权重——也就是说，答案取决于运气。";
+      capEl.textContent = "追加 = 把矛盾留给未来的自己。这是最常见的错误，也是最难发现的那种。";
+    } else if (kind === "merge"){
+      html = factHTML("", "单条事实 · 2026-10 合并 · 历史可溯", "部署目标：<br>· 2026-03 起：K8s 三节点（Helm）<br>· 2026-10 起：改回 Docker Compose 单机（成本原因）<br>当前有效：Docker Compose 单机。");
+      storeTitle.textContent = "仓库现状 · 1 条事实（带时间线）";
+      riskEl.className = "risk";
+      riskEl.textContent = "矛盾风险：低。冲突被折叠进时间线，召回时一条就够，且读得懂演变原因。";
+      capEl.textContent = "合并 = 保留演变史。适合“决策沿革本身有价值”的场景。";
+    } else {
+      html = factHTML("dead", "2026-03 · 已 superseded（归档）", "部署目标：K8s 集群（三节点，Helm 编排）")
+           + factHTML("new", "2026-10 · 现行事实 · supersedes → 2026-03 条目", "部署目标：Docker Compose 单机。原因：成本复盘，详见 2026-10 事故记录。");
+      storeTitle.textContent = "仓库现状 · 2 条事实（1 条已归档）";
+      riskEl.className = "risk";
+      riskEl.textContent = "矛盾风险：低。旧条目保留可查但已归档，召回时默认过滤 superseded。";
+      capEl.textContent = "取代 = 保留证据但改变效力。生产系统里，这是默认姿势。";
+    }
+    storeBox.innerHTML = html;
+  }
+  document.getElementById("s-append").addEventListener("click", function(){ strategy("append"); });
+  document.getElementById("s-merge").addEventListener("click", function(){ strategy("merge"); });
+  document.getElementById("s-super").addEventListener("click", function(){ strategy("super"); });
+  document.getElementById("s-reset").addEventListener("click", function(){
+    stratBtns.forEach(function(btn){ btn.disabled = false; });
+    storeTitle.textContent = "仓库现状 · 2 条事实";
+    storeBox.innerHTML = "";
+    riskEl.className = "risk";
+    riskEl.textContent = "矛盾风险：评一下三种策略的落点。";
+    capEl.textContent = "三种策略都“记住了”，但只有一种让未来的召回是安全的。";
+  });
+
+  /* ---------- D3 召回打分 ---------- */
+  var MEMS = [
+    { t: "部署目标：Docker Compose 单机（2026-10）", rel: 0.95, rec: 1.0, imp: 0.9, cur: true },
+    { t: "部署目标：K8s 三节点 Helm（2026-03，已归档）", rel: 0.93, rec: 0.15, imp: 0.7, cur: false },
+    { t: "CI 缓存：COPY 粒度决定命中率", rel: 0.35, rec: 0.7, imp: 0.6, cur: true },
+    { t: "生产环境端口约定：8080 对外", rel: 0.4, rec: 0.85, imp: 0.5, cur: true },
+    { t: "成本事故：一次误配多花 300 元", rel: 0.3, rec: 0.9, imp: 0.95, cur: true },
+    { t: "（推导）未来可能迁移到 K8s 2.0", rel: 0.45, rec: 1.0, imp: 0.2, cur: true, conf: 0.4 }
+  ];
+  var w1 = 0.6, w2 = 0.2, w3 = 0.2, BUDGET = 3;
+  var rList = document.getElementById("r-list"), rNote = document.getElementById("r-note");
+  function renderRecall(){
+    var scored = MEMS.map(function(m, i){
+      var s = m.rel * w1 + m.rec * w2 + m.imp * w3;
+      return { i: i, m: m, s: s };
+    });
+    scored.sort(function(a, b2){ return b2.s - a.s; });
+    var max = scored[0].s || 1;
+    var html = "";
+    scored.forEach(function(row, idx){
+      var cut = idx >= BUDGET;
+      var cls = "rcard" + (cut ? " cut" : " pick") + (row.m.cur ? "" : " conflict-old");
+      html += '<div class="' + cls + '"><div class="t">' + row.m.t + '</div>'
+           + '<div class="bar"><i style="width:' + (row.s / max * 100).toFixed(1) + '%"></i></div>'
+           + '<div class="sc">' + row.s.toFixed(2) + '</div></div>';
+    });
+    rList.innerHTML = html;
+    rNote.textContent = "按“相关 " + w1.toFixed(1) + " · 新鲜 " + w2.toFixed(1) + " · 重要 " + w3.toFixed(1) + "”排序，预算 " + BUDGET + " 条（淡出者被截断）。";
+  }
+  function bindW(id, setter, vid){
+    var el = document.getElementById(id), v = document.getElementById(vid);
+    el.addEventListener("input", function(){ setter(+el.value); v.textContent = (+el.value).toFixed(1); renderRecall(); });
+  }
+  bindW("r-w1", function(x){ w1 = x; }, "r-w1v");
+  bindW("r-w2", function(x){ w2 = x; }, "r-w2v");
+  bindW("r-w3", function(x){ w3 = x; }, "r-w3v");
+  document.getElementById("r-reset").addEventListener("click", function(){
+    w1 = 0.6; w2 = 0.2; w3 = 0.2;
+    document.getElementById("r-w1").value = 0.6; document.getElementById("r-w2").value = 0.2; document.getElementById("r-w3").value = 0.2;
+    document.getElementById("r-w1v").textContent = "0.6";
+    document.getElementById("r-w2v").textContent = "0.2";
+    document.getElementById("r-w3v").textContent = "0.2";
+    renderRecall();
+  });
+  renderRecall();
+
+  /* ---------- D4 记忆卫生 ---------- */
+  var HMEMS = [
+    { id: "h1", t: "用户偏好：文章先给结论再给证据", ttl: 730, born: 0, import: 0.9 },
+    { id: "h2", t: "部署目标：K8s 三节点（2026-03 决定）", ttl: 90, born: 0, import: 0.7, staleAt: 60 },
+    { id: "h3", t: "部署目标：Docker Compose 单机（2026-10）", ttl: 365, born: 0, import: 0.9, pair: "h2" },
+    { id: "h4", t: "（推导）项目近期会改用别家渠道", ttl: 60, born: 0, import: 0.2, polluted: true },
+    { id: "h5", t: "构建缓存：COPY 粒度决定命中率", ttl: 365, born: 0, import: 0.6 },
+    { id: "h6", t: "端口约定：8080 对外（半年前确认）", ttl: 180, born: 0, import: 0.5, staleAt: 120 }
+  ];
+  var days = 0, removed = {};
+  var hList = document.getElementById("h-list"), hStats = document.getElementById("h-stats");
+  var hTime = document.getElementById("h-time"), hTimev = document.getElementById("h-timev");
+  var hCap = document.getElementById("h-cap");
+  function renderHygiene(){
+    var html = "", active = 0, stale = 0, gone = 0, conflicts = 0;
+    HMEMS.forEach(function(m){
+      if (removed[m.id]){ gone++; return; }
+      var age = m.born + days;
+      var isStale = age >= m.ttl;
+      var isFaded = m.staleAt && age >= m.staleAt && !isStale;
+      var cls = "hyg-row";
+      if (isStale) cls += " faded";
+      if (m.polluted) cls += " polluted";
+      var tag = isStale ? '<span class="tag stale">待复核</span>' : '<span class="tag ok">有效</span>';
+      html += '<div class="' + cls + '"><div class="t">' + m.t + '</div>'
+           + '<div class="age">' + age + " 天前</div>" + tag + '</div>';
+      if (isStale) stale++; else active++;
+    });
+    // 冲突对：两条都在且 h2 尚未过期
+    if (!removed["h2"] && !removed["h3"]) conflicts = 1;
+    hList.innerHTML = html;
+    hStats.innerHTML = '<span>有效 <b>' + active + '</b></span><span>待复核 <b>' + stale + '</b></span>'
+      + '<span>已清理 <b>' + gone + '</b></span><span>矛盾对 <b>' + conflicts + '</b></span>';
+    hTimev.textContent = days + " 天";
+    if (conflicts && days >= 30){
+      hCap.textContent = "⚠ 系统提示：h2（K8s）与 h3（Compose）互相矛盾，h2 已超过复核期——请裁决，不要让它继续参与召回。";
+    } else {
+      hCap.textContent = "TTL 到期不是“删除”，是“进入待复核”——先降权，再问人。";
+    }
+    if (conflicts){
+      var rows = hList.children;
+      for (var i = 0; i < rows.length; i++){
+        var txt = rows[i].querySelector(".t").textContent;
+        if (txt.indexOf("K8s 三节点") === 0 || txt.indexOf("Docker Compose") === 0) rows[i].classList.add("flagged");
+      }
+    }
+  }
+  hTime.addEventListener("input", function(){ days = +hTime.value; renderHygiene(); });
+  document.getElementById("h-gc").addEventListener("click", function(){
+    HMEMS.forEach(function(m){
+      if (removed[m.id]) return;
+      var age = m.born + days;
+      if (age < m.ttl) return;
+      if (m.pair || m.id === "h2" || m.id === "h3") return;   // 矛盾对不清理，只等裁决
+      removed[m.id] = true;
+    });
+    renderHygiene();
+    hCap.textContent = "GC 完成：过期条目进回收站（可恢复）；h2 / h3 这对矛盾被留下——它需要的是裁决，不是清理。";
+  });
+  document.getElementById("h-reset").addEventListener("click", function(){
+    days = 0; removed = {}; hTime.value = 0; renderHygiene();
+  });
+  renderHygiene();
+})();
+</script>
+
+</body>
+</html>
